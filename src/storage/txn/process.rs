@@ -163,6 +163,8 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
     /// Delivers a command to a worker thread for processing.
     fn process_by_worker(mut self, cb_ctx: CbContext, snapshot: E::Snap, mut task: Task) {
         SCHED_STAGE_COUNTER_VEC.get(task.tag).process.inc();
+        info!("process_by_worker");
+        println!("{:?}", backtrace::Backtrace::new());
         debug!(
             "process cmd with snapshot";
             "cid" => task.cid, "cb_ctx" => ?cb_ctx

@@ -939,7 +939,7 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
     req: batch_commands_request::Request,
     tx: Sender<(u64, batch_commands_response::Response)>,
 ) {
-    info!("handle_batch_commands_request")
+    info!("handle_batch_commands_request");
     println!("{:?}", backtrace::Backtrace::new());
     // To simplify code and make the logic more clear.
     macro_rules! oneof {

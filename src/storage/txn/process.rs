@@ -196,7 +196,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     }
                 };
                 tls_collect_scan_details(tag.get_str(), &statistics);
-                info!("process_write elapsed:{:?} tag: {:?} ts:{:?}", timer.elapsed(), tag.get_str(), ts);
+                debug!("process_write elapsed:{:?} tag: {:?} ts:{:?}", timer.elapsed(), tag.get_str(), ts);
                 slow_log!(
                     timer.elapsed(),
                     "[region {}] scheduler handle command: {}, ts: {}",

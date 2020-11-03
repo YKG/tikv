@@ -127,11 +127,11 @@ macro_rules! handle_request {
             }
             let timer = GRPC_MSG_HISTOGRAM_VEC.$fn_name.start_coarse_timer();
             let start2 = Instant::now();
-            println!("YKGX start2: {:?}", start2)
+            println!("YKGX start2: {:?}", start2);
             let future = $future_name(&self.storage, req)
                 .and_then(|res| sink.success(res).map_err(Error::from))
                 .map(move |_| {
-                    println!("YKGX duration: {:?}", start2.elapsed().as_millis())
+                    println!("YKGX duration: {:?}", start2.elapsed().as_millis());
                     // debug!("YKGX handle_request fn_name: {:?} diff: {:?}", stringify!($fn_name), start2.elapsed().as_millis());
                     timer.observe_duration()
                 })

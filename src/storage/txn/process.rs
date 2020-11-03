@@ -163,10 +163,8 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
     /// Delivers a command to a worker thread for processing.
     fn process_by_worker(mut self, cb_ctx: CbContext, snapshot: E::Snap, mut task: Task) {
         SCHED_STAGE_COUNTER_VEC.get(task.tag).process.inc();
-        info!("process_by_worker");
-        println!("{:?}", backtrace::Backtrace::new());
         debug!(
-            "process cmd with snapshot";
+            "process_by_worker process cmd with snapshot";
             "cid" => task.cid, "cb_ctx" => ?cb_ctx
         );
         let tag = task.tag;
@@ -198,7 +196,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     }
                 };
                 tls_collect_scan_details(tag.get_str(), &statistics);
-                info!("elapsed:{:?} tag: {:?} ts:{:?}", time.elapsed(), tag.get_str(), ts);
+                info!("process_write elapsed:{:?} tag: {:?} ts:{:?}", timer.elapsed(), tag.get_str(), ts);
                 slow_log!(
                     timer.elapsed(),
                     "[region {}] scheduler handle command: {}, ts: {}",
@@ -290,11 +288,13 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     } else {
                         (pr, ProcessResult::Res)
                     };
+                    debug!("process_wirte engine_cb create");
                     // The callback to receive async results of write prepare from the storage engine.
                     let engine_cb = Box::new(move |(_, result)| {
                         sched_pool
                             .pool
                             .spawn(async move {
+                                debug!("process_wirte engine_cb scheduled. before notify_scheduler");
                                 notify_scheduler(
                                     sched,
                                     Msg::WriteFinished {

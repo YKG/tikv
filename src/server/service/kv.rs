@@ -789,8 +789,6 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         stream: RequestStream<BatchCommandsRequest>,
         sink: DuplexSink<BatchCommandsResponse>,
     ) {
-        info!("batch_commands");
-        println!("{:?}", backtrace::Backtrace::new());
         if !check_common_name(self.security_mgr.cert_allowed_cn(), &ctx) {
             return;
         }
@@ -940,7 +938,6 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
     tx: Sender<(u64, batch_commands_response::Response)>,
 ) {
     info!("handle_batch_commands_request");
-    println!("{:?}", backtrace::Backtrace::new());
     // To simplify code and make the logic more clear.
     macro_rules! oneof {
         ($p:path) => {

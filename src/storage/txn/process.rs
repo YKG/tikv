@@ -313,7 +313,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                             .unwrap()
                     });
 
-                    to_be_write2 = WriteData::new2(to_be_write.modifies, to_be_write.extra, cid);
+                    let to_be_write2 = WriteData::new2(to_be_write.modifies, to_be_write.extra, cid);
                     if let Err(e) = engine.async_write(&ctx, to_be_write2, engine_cb) {
                         SCHED_STAGE_COUNTER_VEC.get(tag).async_write_err.inc();
 

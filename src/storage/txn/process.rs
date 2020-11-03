@@ -164,7 +164,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
     fn process_by_worker(mut self, cb_ctx: CbContext, snapshot: E::Snap, mut task: Task) {
         SCHED_STAGE_COUNTER_VEC.get(task.tag).process.inc();
         debug!(
-            "process_by_worker process cmd with snapshot";
+            "YKG process_by_worker process cmd with snapshot";
             "cid" => task.cid, "cb_ctx" => ?cb_ctx
         );
         let tag = task.tag;
@@ -196,7 +196,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     }
                 };
                 tls_collect_scan_details(tag.get_str(), &statistics);
-                debug!("process_write elapsed:{:?} tag: {:?} ts:{:?}", timer.elapsed(), tag.get_str(), ts);
+                debug!("YKG process_write elapsed:{:?} tag: {:?} cid:{:?}", timer.elapsed(), tag.get_str(), task.cid);
                 slow_log!(
                     timer.elapsed(),
                     "[region {}] scheduler handle command: {}, ts: {}",
@@ -288,13 +288,13 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     } else {
                         (pr, ProcessResult::Res)
                     };
-                    debug!("process_wirte engine_cb create");
+                    debug!("YKG process_wirte engine_cb create"; "cid" => cid);
                     // The callback to receive async results of write prepare from the storage engine.
                     let engine_cb = Box::new(move |(_, result)| {
                         sched_pool
                             .pool
                             .spawn(async move {
-                                debug!("process_wirte engine_cb scheduled. before notify_scheduler");
+                                debug!("YKG process_wirte engine_cb scheduled. before notify_scheduler"; "cid" => cid);
                                 notify_scheduler(
                                     sched,
                                     Msg::WriteFinished {
@@ -313,7 +313,8 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                             .unwrap()
                     });
 
-                    if let Err(e) = engine.async_write(&ctx, to_be_write, engine_cb) {
+                    to_be_write2 = WriteData::new2(to_be_write.modifies, to_be_write.extra, cid);
+                    if let Err(e) = engine.async_write(&ctx, to_be_write2, engine_cb) {
                         SCHED_STAGE_COUNTER_VEC.get(tag).async_write_err.inc();
 
                         info!("engine async_write failed"; "cid" => cid, "err" => ?e);

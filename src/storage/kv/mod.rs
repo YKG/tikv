@@ -80,11 +80,16 @@ impl Modify {
 pub struct WriteData {
     pub modifies: Vec<Modify>,
     pub extra: TxnExtra,
+    pub cid: u64,
 }
 
 impl WriteData {
+    pub fn new2(modifies: Vec<Modify>, extra: TxnExtra, cid: u64) -> Self {
+        Self { modifies, extra, cid }
+    }
+
     pub fn new(modifies: Vec<Modify>, extra: TxnExtra) -> Self {
-        Self { modifies, extra }
+        Self { modifies, extra, cid: 0 }
     }
 
     pub fn from_modifies(modifies: Vec<Modify>) -> Self {

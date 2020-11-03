@@ -316,7 +316,7 @@ impl<S: RaftStoreRouter> Engine for RaftKv<S> {
         ASYNC_REQUESTS_COUNTER_VEC.write.all.inc();
         let req_timer = ASYNC_REQUESTS_DURATIONS_VEC.write.start_coarse_timer();
 
-        debug!("async_write. before exec_write_requests");
+        debug!("YKG async_write. before exec_write_requests"; cid => batch.cid);
         self.exec_write_requests(
             ctx,
             reqs,
@@ -326,7 +326,7 @@ impl<S: RaftStoreRouter> Engine for RaftKv<S> {
                     req_timer.observe_duration();
                     ASYNC_REQUESTS_COUNTER_VEC.write.success.inc();
                     fail_point!("raftkv_async_write_finish");
-                    debug!("exec_write_requests done. in callback.");
+                    debug!("YKG exec_write_requests done. in callback."; cid => batch.cid);
                     cb((cb_ctx, Ok(())))
                 }
                 Ok(CmdRes::Snap(_)) => cb((

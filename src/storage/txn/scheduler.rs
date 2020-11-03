@@ -343,7 +343,7 @@ impl<E: Engine, L: LockManager> Scheduler<E, L> {
 
     fn schedule_command(&self, cmd: Command, callback: StorageCallback) {
         let cid = self.inner.gen_id();
-        debug!("received new command"; "cid" => cid, "cmd" => ?cmd);
+        debug!("YKG received new command"; "cid" => cid, "cmd" => ?cmd);
 
         let tag = cmd.tag();
         let priority_tag = get_priority_tag(cmd.priority());
@@ -360,7 +360,7 @@ impl<E: Engine, L: LockManager> Scheduler<E, L> {
     /// Tries to acquire all the necessary latches. If all the necessary latches are acquired,
     /// the method initiates a get snapshot operation for further processing.
     fn try_to_wake_up(&self, cid: u64) {
-        debug!("try_to_wake_up cid:{:?}", cid);
+        debug!("YKG try_to_wake_up"; "cid"=>cid);
         if self.inner.acquire_lock(cid) {
             self.get_snapshot(cid);
         }
@@ -368,7 +368,7 @@ impl<E: Engine, L: LockManager> Scheduler<E, L> {
 
     fn on_receive_new_cmd(&self, cmd: Command, callback: StorageCallback) {
         // write flow control
-        debug!("on_receive_new_cmd"; "cmd" => ?cmd);
+        debug!("YKG on_receive_new_cmd"; "cmd" => ?cmd);
         if cmd.need_flow_control() && self.inner.too_busy() {
             SCHED_TOO_BUSY_COUNTER_VEC.get(cmd.tag()).inc();
             callback.execute(ProcessResult::Failed {

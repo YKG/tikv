@@ -174,6 +174,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
         let sched_pool = self.clone_pool();
         let readonly = task.cmd.readonly();
         let extra_op = cb_ctx.txn_extra_op;
+        let cid = task.cid;
         sched_pool
             .pool
             .spawn(async move {
@@ -196,7 +197,7 @@ impl<E: Engine, S: MsgScheduler, L: LockManager> Executor<E, S, L> {
                     }
                 };
                 tls_collect_scan_details(tag.get_str(), &statistics);
-                debug!("YKG process_write elapsed:{:?} tag: {:?} cid:{:?}", timer.elapsed(), tag.get_str(), task.cid);
+                debug!("YKG process_write elapsed:{:?} tag: {:?} cid:{:?}", timer.elapsed(), tag.get_str(), cid);
                 slow_log!(
                     timer.elapsed(),
                     "[region {}] scheduler handle command: {}, ts: {}",

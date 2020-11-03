@@ -129,7 +129,7 @@ macro_rules! handle_request {
             let start = Instant::now();
             let future = $future_name(&self.storage, req)
                 .and_then(|res| sink.success(res).map_err(Error::from))
-                .map(|_| {
+                .map(|start| {
                     debug!("YKGX handle_request "; "fn_name"=> stringify!($fn_name), "diff" => start.elapsed().as_millis());
                     timer.observe_duration()
                 })

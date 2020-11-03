@@ -1473,7 +1473,7 @@ macro_rules! txn_command_future {
         ) -> impl Future<Item = $resp_ty, Error = Error> {
             $prelude
             let (cb, f) = paired_future_callback();
-            debug!("txn_command_future YKGX")
+            debug!("txn_command_future YKGX");
             let res = storage.sched_txn_command($req.into(), cb);
 
             AndThenWith::new(res, f.map_err(Error::from)).map(move |$v| {

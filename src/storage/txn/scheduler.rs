@@ -368,7 +368,7 @@ impl<E: Engine, L: LockManager> Scheduler<E, L> {
 
     fn on_receive_new_cmd(&self, cmd: Command, callback: StorageCallback) {
         // write flow control
-        debug!("on_receive_new_cmd",  "cmd" => ?cmd);
+        debug!("on_receive_new_cmd"; "cmd" => ?cmd);
         if cmd.need_flow_control() && self.inner.too_busy() {
             SCHED_TOO_BUSY_COUNTER_VEC.get(cmd.tag()).inc();
             callback.execute(ProcessResult::Failed {

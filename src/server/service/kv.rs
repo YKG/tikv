@@ -126,9 +126,13 @@ macro_rules! handle_request {
                 return;
             }
             let timer = GRPC_MSG_HISTOGRAM_VEC.$fn_name.start_coarse_timer();
+            let start = Instant::now();
             let future = $future_name(&self.storage, req)
                 .and_then(|res| sink.success(res).map_err(Error::from))
-                .map(|_| timer.observe_duration())
+                .map(|_| {
+                    debug!("YKGX handle_request "; "fn_name"=> stringify!($fn_name), "diff" => start.elapsed().as_millis())
+                    timer.observe_duration()
+                })
                 .map_err(move |e| {
                     debug!("kv rpc failed";
                         "request" => stringify!($fn_name),

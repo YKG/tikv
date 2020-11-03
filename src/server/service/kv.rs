@@ -130,7 +130,7 @@ macro_rules! handle_request {
             let future = $future_name(&self.storage, req)
                 .and_then(|res| sink.success(res).map_err(Error::from))
                 .map(|_| {
-                    debug!("YKGX handle_request "; "fn_name"=> stringify!($fn_name), "diff" => start.elapsed().as_millis())
+                    debug!("YKGX handle_request "; "fn_name"=> stringify!($fn_name), "diff" => start.elapsed().as_millis());
                     timer.observe_duration()
                 })
                 .map_err(move |e| {

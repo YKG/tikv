@@ -936,7 +936,8 @@ fn response_batch_commands_request<F>(
             error!("KvService response batch commands fail");
             return Err(());
         }
-        debug!("response_batch_commands_request YKGX id: {:?}", id);
+        let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+        debug!("response_batch_commands_request now: {:?} YKGX id: {:?}", since_the_epoch.as_millis(), id);
         timer.observe_duration();
         Ok(())
     });

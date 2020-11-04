@@ -127,6 +127,7 @@ macro_rules! handle_request {
             }
             let timer = GRPC_MSG_HISTOGRAM_VEC.$fn_name.start_coarse_timer();
             let start2 = Instant::now();
+            debug!("handle_request YKGX");
             println!("YKGX start2: {:?}", start2);
             let future = $future_name(&self.storage, req)
                 .and_then(|res| sink.success(res).map_err(Error::from))

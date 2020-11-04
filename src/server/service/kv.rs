@@ -846,7 +846,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
-                    debug!("for id,req in request_ids YKGX id: {:?} req: {}", id, req.cmd);
+                    debug!("for id,req in request_ids YKGX id: {:?}", id);
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
                         debug!("before handle_batch_commands_request YKGX id: {:?}", id);
                         handle_batch_commands_request(
@@ -973,6 +973,7 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
                     response_batch_commands_request(id, resp, tx, timer);
                 }
                 $(Some(batch_commands_request::request::Cmd::$cmd(req)) => {
+                    debug!("handle_cmd! YKGX id: {:?} future_fn: {:?}", id, stringify!($future_fn));
                     let timer = GRPC_MSG_HISTOGRAM_VEC.$metric_name.start_coarse_timer();
                     let resp = $future_fn($($arg,)* req)
                         .map(oneof!(batch_commands_response::response::Cmd::$cmd))

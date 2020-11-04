@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use crate::coprocessor::Endpoint;
 use crate::server::gc_worker::GcWorker;
@@ -973,7 +973,8 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
                     response_batch_commands_request(id, resp, tx, timer);
                 }
                 $(Some(batch_commands_request::request::Cmd::$cmd(req)) => {
-                    debug!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, Instant::now(), stringify!($future_fn));
+                    let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+                    debug!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, since_the_epoch.as_millis(), stringify!($future_fn));
                     let timer = GRPC_MSG_HISTOGRAM_VEC.$metric_name.start_coarse_timer();
                     let resp = $future_fn($($arg,)* req)
                         .map(oneof!(batch_commands_response::response::Cmd::$cmd))

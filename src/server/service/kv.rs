@@ -796,6 +796,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         stream: RequestStream<BatchCommandsRequest>,
         sink: DuplexSink<BatchCommandsResponse>,
     ) {
+        debug!("batch_commands YKGX");
         if !check_common_name(self.security_mgr.cert_allowed_cn(), &ctx) {
             return;
         }
@@ -838,12 +839,16 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                         .map_err(|e| error!("batch_commands timer errored"; "err" => ?e)),
                 );
             }
+            debug!("request_handler create YKGX");
             let request_handler = stream.for_each(move |mut req| {
+                debug!("stream.for_each YKGX");
                 let request_ids = req.take_request_ids();
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
+                    debug!("for id,req in request_ids YKGX");
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
+                        debug!("before handle_batch_commands_request YKGX");
                         handle_batch_commands_request(
                             &storage,
                             &gc_worker,
@@ -855,6 +860,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                         );
                     }
                 }
+                debug!("req_batcher maybe_submit YKGX");
                 req_batcher.lock().unwrap().maybe_submit(&storage);
                 future::ok(())
             });
@@ -907,6 +913,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 GrpcError::RpcFailure(RpcStatus::new(RpcStatusCode::UNKNOWN, msg))
             });
 
+        debug!("ctx.spawn(sink.send_all YKGX");
         ctx.spawn(sink.send_all(response_retriever).map(|_| ()).map_err(|e| {
             debug!("kv rpc failed";
                 "request" => "batch_commands",
@@ -929,6 +936,7 @@ fn response_batch_commands_request<F>(
             error!("KvService response batch commands fail");
             return Err(());
         }
+        debug!("response_batch_commands_request YKGX");
         timer.observe_duration();
         Ok(())
     });

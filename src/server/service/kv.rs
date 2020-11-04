@@ -1475,7 +1475,7 @@ macro_rules! txn_command_future {
             $prelude
             let (cb, f) = paired_future_callback();
             debug!("txn_command_future YKGX");
-            debug!("{:?}", backtrace::Backtrace::new())
+            debug!("{:?}", backtrace::Backtrace::new());
             let res = storage.sched_txn_command($req.into(), cb);
 
             AndThenWith::new(res, f.map_err(Error::from)).map(move |$v| {

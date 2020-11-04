@@ -973,7 +973,7 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
                     response_batch_commands_request(id, resp, tx, timer);
                 }
                 $(Some(batch_commands_request::request::Cmd::$cmd(req)) => {
-                    debug!("handle_cmd! YKGX id: {:?} future_fn: {:?}", id, stringify!($future_fn));
+                    debug!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, Instant::now(), stringify!($future_fn));
                     let timer = GRPC_MSG_HISTOGRAM_VEC.$metric_name.start_coarse_timer();
                     let resp = $future_fn($($arg,)* req)
                         .map(oneof!(batch_commands_response::response::Cmd::$cmd))

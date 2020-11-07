@@ -1526,8 +1526,7 @@ dependencies = [
 [[package]]
 name = "grpcio"
 version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a60cc544face71ebbc053d821fdf880b809340b67d19f5d07d6b829e9e36e63"
+source = "git+https://github.com/YKG/grpc-rs.git?branch=bt#b44b4b6acb8973ce37617fac2919dfde982ca457"
 dependencies = [
  "bytes 0.5.3",
  "futures 0.1.29",

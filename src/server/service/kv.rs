@@ -841,6 +841,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
             }
             debug!("request_handler create YKGX");
             let request_handler = stream.for_each(move |mut req| {
+                let start3 = Instant::now();
                 debug!("stream.for_each YKGX");
                 let request_ids = req.take_request_ids();
                 let requests: Vec<_> = req.take_requests().into();
@@ -861,8 +862,8 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                         );
                     }
                 }
-                debug!("req_batcher maybe_submit YKGX");
                 req_batcher.lock().unwrap().maybe_submit(&storage);
+                warn!("req_batcher maybe_submit called YKGX req_ids: {:?} elapsed: {}", request_ids, start3.elapsed().as_micros());
                 future::ok(())
             });
             ctx.spawn(

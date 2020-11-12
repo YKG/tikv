@@ -844,6 +844,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 let start3 = Instant::now();
                 debug!("stream.for_each YKGX");
                 let request_ids = req.take_request_ids();
+                let req_ids_str = format!("{:?}", request_ids);
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
@@ -863,7 +864,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                     }
                 }
                 req_batcher.lock().unwrap().maybe_submit(&storage);
-                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", std::thread::current().name().unwrap(), request_ids, start3.elapsed().as_micros());
+                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", std::thread::current().name().unwrap(), req_ids_str, start3.elapsed().as_micros());
                 future::ok(())
             });
             ctx.spawn(

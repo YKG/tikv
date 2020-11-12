@@ -863,7 +863,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                     }
                 }
                 req_batcher.lock().unwrap().maybe_submit(&storage);
-                warn!("req_batcher maybe_submit called YKGX req_ids: {:?} elapsed: {}", request_ids, start3.elapsed().as_micros());
+                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", thread::current().name().unwrap(), request_ids, start3.elapsed().as_micros());
                 future::ok(())
             });
             ctx.spawn(

@@ -863,7 +863,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                     }
                 }
                 req_batcher.lock().unwrap().maybe_submit(&storage);
-                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", thread::current().name().unwrap(), request_ids, start3.elapsed().as_micros());
+                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", std::thread::current().name().unwrap(), request_ids, start3.elapsed().as_micros());
                 future::ok(())
             });
             ctx.spawn(
@@ -907,6 +907,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         let response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
+                warn!("response_retriever YKGX thread: {} req_ids: {:?}", std::thread::current().name().unwrap(), r.request_ids);
                 r.set_transport_layer_load(thread_load.load() as u64);
                 (r, WriteFlags::default().buffer_hint(false))
             })

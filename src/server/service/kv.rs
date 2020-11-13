@@ -941,7 +941,7 @@ fn response_batch_commands_request<F>(
             return Err(());
         }
         let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
-        debug!("response_batch_commands_request now: {:?} YKGX id: {:?}", since_the_epoch.as_millis(), id);
+        warn!("response_batch_commands_request now: {:?} YKGX id: {:?}", since_the_epoch.as_millis(), id);
         timer.observe_duration();
         Ok(())
     });
@@ -979,7 +979,7 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
                 }
                 $(Some(batch_commands_request::request::Cmd::$cmd(req)) => {
                     let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
-                    debug!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, since_the_epoch.as_millis(), stringify!($future_fn));
+                    warn!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, since_the_epoch.as_millis(), stringify!($future_fn));
                     let timer = GRPC_MSG_HISTOGRAM_VEC.$metric_name.start_coarse_timer();
                     let resp = $future_fn($($arg,)* req)
                         .map(oneof!(batch_commands_response::response::Cmd::$cmd))

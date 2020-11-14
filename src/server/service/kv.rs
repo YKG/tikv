@@ -847,9 +847,10 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 let req_ids_str = format!("{:?}", request_ids);
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
+                let e1 = start3.elapsed().as_micros();
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
                     let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
-                    debug!("for id,req in request_ids now: {:?} YKGX id: {:?}", since_the_epoch.as_millis(), id);
+                    let e11 = start3.elapsed().as_micros();
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
                         debug!("before handle_batch_commands_request YKGX id: {:?}", id);
                         handle_batch_commands_request(
@@ -862,9 +863,12 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                             tx.clone(),
                         );
                     }
+                    let e12 = start3.elapsed().as_micros();
+                    warn!("YKGX thread: {} for id,req in request_ids now: {:?} YKGX req_id: {:?} cost: {}", since_the_epoch.as_millis(), id, e12 - e11);
                 }
+                let e2 = start3.elapsed().as_micros();
                 req_batcher.lock().unwrap().maybe_submit(&storage);
-                warn!("req_batcher maybe_submit called YKGX thread: {} req_ids: {:?} elapsed: {}", std::thread::current().name().unwrap(), req_ids_str, start3.elapsed().as_micros());
+                warn!("YKGX thread: {} req_batcher maybe_submit called req_ids: {:?} elapsed: {} e1: {} e2: {}", std::thread::current().name().unwrap(), req_ids_str, start3.elapsed().as_micros(), e1, e2);
                 future::ok(())
             });
             ctx.spawn(
@@ -908,7 +912,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         let response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
-                warn!("response_retriever YKGX thread: {} req_ids: {:?}", std::thread::current().name().unwrap(), r.request_ids);
+                warn!("YKGX thread: {} response_retriever req_ids: {:?}", std::thread::current().name().unwrap(), r.request_ids);
                 r.set_transport_layer_load(thread_load.load() as u64);
                 (r, WriteFlags::default().buffer_hint(false))
             })

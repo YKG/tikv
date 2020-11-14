@@ -864,7 +864,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                         );
                     }
                     let e12 = start3.elapsed().as_micros();
-                    warn!("YKGX thread: {} for id,req in request_ids now: {:?} YKGX req_id: {:?} cost: {}", since_the_epoch.as_millis(), id, e12 - e11);
+                    warn!("YKGX thread: {} for id,req in request_ids now: {:?} YKGX req_id: {:?} cost: {}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), id, e12 - e11);
                 }
                 let e2 = start3.elapsed().as_micros();
                 req_batcher.lock().unwrap().maybe_submit(&storage);

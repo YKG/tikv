@@ -849,9 +849,9 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
                 let e1 = start3.elapsed().as_micros();
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
-                    let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
                     let e11 = start3.elapsed().as_micros();
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
+                        let e100 = start3.elapsed().as_micros();
                         debug!("before handle_batch_commands_request YKGX id: {:?}", id);
                         handle_batch_commands_request(
                             &storage,
@@ -862,13 +862,17 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                             req,
                             tx.clone(),
                         );
+                        let e101 = start3.elapsed().as_micros();
                     }
                     let e12 = start3.elapsed().as_micros();
-                    warn!("YKGX thread: {} for id,req in request_ids now: {:?} YKGX req_id: {:?} cost: {}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), id, e12 - e11);
+                    let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+                    warn!("YKGX thread: {} for id,req in request_ids now: {:?} YKGX req_id: {:?} cost: {} lock: {} shed: {}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), id, e12 - e11, e100 - e11, e101 - e100);
                 }
                 let e2 = start3.elapsed().as_micros();
                 req_batcher.lock().unwrap().maybe_submit(&storage);
-                warn!("YKGX thread: {} req_batcher maybe_submit called req_ids: {:?} elapsed: {} e1: {} e2: {}", std::thread::current().name().unwrap(), req_ids_str, start3.elapsed().as_micros(), e1, e2);
+                let e3 = start3.elapsed().as_micros();
+                let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+                warn!("YKGX thread: {} req_batcher maybe_submit called now: {:?} req_ids: {:?} elapsed: {} e1: {} e2: {} lock2: {}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), req_ids_str, e3, e1, e2, e3 - e2);
                 future::ok(())
             });
             ctx.spawn(
@@ -912,7 +916,8 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         let response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
-                warn!("YKGX thread: {} response_retriever req_ids: {:?}", std::thread::current().name().unwrap(), r.request_ids);
+                let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+                warn!("YKGX thread: {} response_retriever now: {:?} req_ids: {:?}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), r.request_ids);
                 r.set_transport_layer_load(thread_load.load() as u64);
                 (r, WriteFlags::default().buffer_hint(false))
             })
@@ -945,7 +950,7 @@ fn response_batch_commands_request<F>(
             return Err(());
         }
         let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
-        warn!("response_batch_commands_request now: {:?} YKGX id: {:?}", since_the_epoch.as_millis(), id);
+        warn!("YKGX thread: {} response_batch_commands_request now: {:?} id: {:?}", std::thread::current().name().unwrap(), since_the_epoch.as_millis(), id);
         timer.observe_duration();
         Ok(())
     });
@@ -983,7 +988,7 @@ fn handle_batch_commands_request<E: Engine, L: LockManager>(
                 }
                 $(Some(batch_commands_request::request::Cmd::$cmd(req)) => {
                     let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
-                    warn!("handle_cmd! YKGX id: {:?} now: {:?} future_fn: {:?}", id, since_the_epoch.as_millis(), stringify!($future_fn));
+                    warn!("YKGX thread: {} handle_cmd! id: {:?} now: {:?} future_fn: {:?}", std::thread::current().name().unwrap(), id, since_the_epoch.as_millis(), stringify!($future_fn));
                     let timer = GRPC_MSG_HISTOGRAM_VEC.$metric_name.start_coarse_timer();
                     let resp = $future_fn($($arg,)* req)
                         .map(oneof!(batch_commands_response::response::Cmd::$cmd))

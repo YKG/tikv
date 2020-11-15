@@ -850,8 +850,10 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 let e1 = start3.elapsed().as_micros();
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
                     let e11 = start3.elapsed().as_micros();
+                    let mut e100 = 0;
+                    let mut e101 = 0;
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
-                        let e100 = start3.elapsed().as_micros();
+                        e100 = start3.elapsed().as_micros();
                         debug!("before handle_batch_commands_request YKGX id: {:?}", id);
                         handle_batch_commands_request(
                             &storage,
@@ -862,7 +864,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                             req,
                             tx.clone(),
                         );
-                        let e101 = start3.elapsed().as_micros();
+                        e101 = start3.elapsed().as_micros();
                     }
                     let e12 = start3.elapsed().as_micros();
                     let since_the_epoch = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");

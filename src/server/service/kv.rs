@@ -45,6 +45,26 @@ use txn_types::{self, Key};
 const GRPC_MSG_MAX_BATCH_SIZE: usize = 128;
 const GRPC_MSG_NOTIFY_SIZE: usize = 8;
 
+struct MyTracer {
+    count: u64,
+}
+
+impl MyTracer {
+    pub fn new() -> Self {
+        MyTracer{count: 0}
+    }
+
+    pub fn add(&mut self) {
+        self.count += 1;
+    }
+}
+
+impl Drop for MyTracer {
+    fn drop(&self) {
+        println!("MyTracer drop: {}", self.count);
+    }
+}
+
 /// Service handles the RPC messages for the `Tikv` service.
 #[derive(Clone)]
 pub struct Service<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> {
@@ -789,6 +809,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         stream: RequestStream<BatchCommandsRequest>,
         sink: DuplexSink<BatchCommandsResponse>,
     ) {
+        let mut my_tracer = MyTracer::new();
         if !check_common_name(self.security_mgr.cert_allowed_cn(), &ctx) {
             return;
         }
@@ -832,6 +853,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 );
             }
             let request_handler = stream.for_each(move |mut req| {
+                my_tracer.add();
                 let request_ids = req.take_request_ids();
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
@@ -892,6 +914,7 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
         let response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
+                my_tracer.add();
                 r.set_transport_layer_load(thread_load.load() as u64);
                 (r, WriteFlags::default().buffer_hint(false))
             })

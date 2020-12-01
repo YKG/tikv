@@ -62,7 +62,7 @@ struct Tracer {
 
 impl Tracer {
     pub fn new(pos: TracePos) -> Self {
-        let mut v : Vec<(u64, SystemTime)> = Vec::with_capacity(TRACE_SIZE);
+        let v : Vec<(u64, SystemTime)> = Vec::with_capacity(TRACE_SIZE);
         Tracer {v, pos}
     }
 

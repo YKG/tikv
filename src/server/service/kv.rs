@@ -45,25 +45,44 @@ use txn_types::{self, Key};
 const GRPC_MSG_MAX_BATCH_SIZE: usize = 128;
 const GRPC_MSG_NOTIFY_SIZE: usize = 8;
 
-struct MyTracer {
-    count: u64,
+const TRACE_SIZE : usize = 1000000;
+
+#[derive(Debug)]
+enum TracePos {
+    DE2,
+    KV1,
+    KV2
 }
 
-impl MyTracer {
-    pub fn new() -> Self {
-        MyTracer{count: 0}
+struct Tracer {
+    v: Vec<(u64, SystemTime)>,
+    pos: TracePos
+}
+
+impl Tracer {
+    pub fn new(pos: TracePos) -> Self {
+        Tracer {v : Vec::with_capacity(TRACE_SIZE), pos}
     }
 
-    pub fn add(&mut self) {
-        self.count += 1;
+    #[inline]
+    pub fn push(&mut self, id : u64) {
+        self.v.push((id, SystemTime::now()))
     }
 }
 
-impl Drop for MyTracer {
+use std::io::Write;
+
+impl Drop for Tracer {
+
     fn drop(&mut self) {
-        println!("MyTracer drop: {}", self.count);
+        let file = std::fs::File::create(format!("{:?}-trace.txt", self.pos)).unwrap();
+        let mut file =  std::io::LineWriter::new(file);
+        for e in &(self.v) {
+            file.write_all(format!("{}, {:?}\n", e.0, e.1).as_bytes()).unwrap();
+        }
     }
 }
+
 
 /// Service handles the RPC messages for the `Tikv` service.
 #[derive(Clone)]
@@ -851,14 +870,18 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                         .map_err(|e| error!("batch_commands timer errored"; "err" => ?e)),
                 );
             }
-            let mut my_tracer = MyTracer::new();
+            let mut de2_tracer = Tracer::new(TracePos::DE2);
+            let mut kv1_tracer = Tracer::new(TracePos::KV1);
             let request_handler = stream.for_each(move |mut req| {
-                my_tracer.add();
                 let request_ids = req.take_request_ids();
+                for id in &request_ids {
+                    de2_tracer.push(*id);
+                }
                 let requests: Vec<_> = req.take_requests().into();
                 GRPC_REQ_BATCH_COMMANDS_SIZE.observe(requests.len() as f64);
                 for (id, mut req) in request_ids.into_iter().zip(requests) {
                     if !req_batcher.lock().unwrap().filter(id, &mut req) {
+                        kv1_tracer.push(id);
                         handle_batch_commands_request(
                             &storage,
                             &gc_worker,
@@ -911,11 +934,13 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
             BatchRespCollector,
         );
 
-        let mut my_tracer2 = MyTracer::new();
+        let mut kv2_tracer = Tracer::new(TracePos::KV2);
         let response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
-                my_tracer2.add();
+                for id in &(r.request_ids) {
+                    kv2_tracer.push(*id);
+                }
                 r.set_transport_layer_load(thread_load.load() as u64);
                 (r, WriteFlags::default().buffer_hint(false))
             })

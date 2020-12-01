@@ -77,7 +77,7 @@ use std::io::Write;
 impl Drop for Tracer {
 
     fn drop(&mut self) {
-        let file = std::fs::File::create(format!("{:?}-trace.txt", self.pos)).unwrap();
+        let file = std::fs::File::create(format!("{}-{:?}-trace.txt", std::thread::current().name().unwrap(), self.pos)).unwrap();
         let mut file =  std::io::LineWriter::new(file);
         for e in &(self.v) {
             file.write_all(format!("{}, {:?}\n", e.0, e.1).as_bytes()).unwrap();

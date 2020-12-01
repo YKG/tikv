@@ -62,10 +62,6 @@ struct Tracer {
 
 impl Tracer {
     pub fn new(pos: TracePos) -> Self {
-        let file = std::fs::File::create(format!("{}-{:?}-trace-init.txt", std::thread::current().name().unwrap(), pos)).unwrap();
-        let mut file =  std::io::LineWriter::new(file);
-        file.write_all(format!("{} {:?} Tracer init",std::thread::current().name().unwrap(), pos).as_bytes()).unwrap();
-        error!("{} {:?} Tracer init", std::thread::current().name().unwrap(), pos);
         let v : Vec<(u64, SystemTime)> = Vec::with_capacity(TRACE_SIZE);
         Tracer {v, pos}
     }
@@ -81,7 +77,6 @@ use std::io::Write;
 impl Drop for Tracer {
 
     fn drop(&mut self) {
-        error!("{} {:?} Tracer drop", std::thread::current().name().unwrap(), self.pos);
         let file = std::fs::File::create(format!("{}-{:?}-trace.txt", std::thread::current().name().unwrap(), self.pos)).unwrap();
         let mut file =  std::io::LineWriter::new(file);
         file.write_all(format!("len: {}\n", self.v.len()).as_bytes()).unwrap();

@@ -41,6 +41,7 @@ use tikv_util::timer::GLOBAL_TIMER_HANDLE;
 use tikv_util::worker::Scheduler;
 use tokio_threadpool::{Builder as ThreadPoolBuilder, ThreadPool};
 use txn_types::{self, Key};
+use std::time::SystemTime;
 
 const GRPC_MSG_MAX_BATCH_SIZE: usize = 128;
 const GRPC_MSG_NOTIFY_SIZE: usize = 8;
@@ -61,7 +62,8 @@ struct Tracer {
 
 impl Tracer {
     pub fn new(pos: TracePos) -> Self {
-        Tracer {v : Vec::with_capacity(TRACE_SIZE), pos}
+        let mut v : Vec<(u64, SystemTime)> = Vec::with_capacity(TRACE_SIZE);
+        Tracer {v, pos}
     }
 
     #[inline]

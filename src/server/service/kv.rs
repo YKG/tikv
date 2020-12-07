@@ -912,9 +912,24 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
                     WriteFlags::default().buffer_hint(false),
                 ))
             });
-
+        sink.enhance_batch(true);
         let send_task = async move {
-            sink.send_all(&mut response_retriever).await?;
+            use futures::prelude::*;
+            let mut i : usize = 0;
+            let mut v = Vec::with_capacity(GRPC_MSG_MAX_BATCH_SIZE);
+            while let Some(resp) = response_retriever.try_next().await? {
+                v.push(resp);
+                i += 1;
+                if i % GRPC_MSG_MAX_BATCH_SIZE == 0 {
+                    let v2 = v;
+                    v = Vec::with_capacity(GRPC_MSG_MAX_BATCH_SIZE);
+                    let mut  stream = stream::iter(v2.into_iter().map(Ok));
+                    // println!("i = {}", i);
+                    sink.send_all(&mut stream).await?;
+                }
+            }
+            let mut  stream = stream::iter(v.into_iter().map(Ok));
+            sink.send_all(&mut stream).await?;
             sink.close().await?;
             Ok(())
         }

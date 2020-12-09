@@ -911,25 +911,48 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
                     r,
                     WriteFlags::default().buffer_hint(false),
                 ))
-            });
-        sink.enhance_batch(true);
+            }).fuse();
         let send_task = async move {
             use futures::prelude::*;
-            let mut i : usize = 0;
-            let mut v = Vec::with_capacity(GRPC_MSG_MAX_BATCH_SIZE);
-            while let Some(resp) = response_retriever.try_next().await? {
-                v.push(resp);
-                i += 1;
-                if i % GRPC_MSG_MAX_BATCH_SIZE == 0 {
-                    let v2 = v;
-                    v = Vec::with_capacity(GRPC_MSG_MAX_BATCH_SIZE);
-                    let mut  stream = stream::iter(v2.into_iter().map(Ok));
-                    // println!("i = {}", i);
-                    sink.send_all(&mut stream).await?;
+            const BUF_SIZE : usize = 8;
+            let mut timeout = futures_timer::Delay::new(std::time::Duration::from_millis(50)).fuse();
+            // let mut interval = time::interval(Duration::from_millis(50));
+            let mut v2 = Vec::with_capacity(BUF_SIZE);
+
+            sink.enhance_batch(true);
+            let mut eof = false;
+            loop {
+                futures::select! {
+                    _ = timeout => {
+                        // println!("operation timed out--------------");
+                        // println!("timeo {:?} {:?}", v2, std::time::SystemTime::now());
+                    }
+                    r = response_retriever.next() => match r {
+                        None => {
+                            // println!(">>>>>>>>> batch {:?} GOT NONE", std::time::SystemTime::now());
+                            eof = true;
+                        },
+                        Some(req) => {
+                            // println!(">>>>>>>>> batch {:?} {:?} {:?}", std::time::SystemTime::now(), v2, req);
+                            v2.push(req);
+                            if v2.len() < 68 {
+                                continue
+                            }
+                        }
+                    }
                 }
+
+                if eof {
+                    break
+                }
+
+                // let length = v2.len();
+                let mut stream1 = stream::iter(v2.into_iter());
+                // println!("sendall >>>>>>>>>>> -------------- {}", length);
+                sink.send_all(&mut stream1).await.unwrap();
+                timeout = futures_timer::Delay::new(std::time::Duration::from_millis(50)).fuse();
+                v2 = Vec::with_capacity(BUF_SIZE);
             }
-            let mut  stream = stream::iter(v.into_iter().map(Ok));
-            sink.send_all(&mut stream).await?;
             sink.close().await?;
             Ok(())
         }

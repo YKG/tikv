@@ -98,6 +98,7 @@ failure = "0.1"
 file_system = { path = "components/file_system" }
 fs2 = "0.4"
 futures = { version = "0.3", features = ["thread-pool", "compat"] }
+futures-timer = "3.0"
 futures-executor = "0.3.1"
 futures-util = { version = "0.3.1", default-features = false, features = ["io", "async-await"] }
 grpcio = { version = "0.7", default-features = false, features = ["openssl-vendored"] }

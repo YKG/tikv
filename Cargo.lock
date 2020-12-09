@@ -4659,6 +4659,7 @@ dependencies = [
  "fs2",
  "futures 0.3.7",
  "futures-executor",
+ "futures-timer",
  "futures-util",
  "grpcio",
  "hex 0.4.2",

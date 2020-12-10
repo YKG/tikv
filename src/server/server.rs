@@ -111,6 +111,10 @@ impl<T: RaftStoreRouter<RocksEngine> + Unpin, S: StoreAddrResolver + 'static> Se
             Arc::clone(&grpc_thread_load),
             Arc::clone(&readpool_normal_thread_load),
             cfg.enable_request_batch,
+            cfg.grpc_batch_threshold_cpu_load,
+            cfg.grpc_batch_threshold_mss,
+            cfg.grpc_batch_threshold_msg_count,
+            cfg.grpc_batch_timeout,
             security_mgr.clone(),
         );
 

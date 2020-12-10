@@ -62,6 +62,10 @@ pub struct Service<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: Lock
     snap_scheduler: Scheduler<SnapTask>,
 
     enable_req_batch: bool,
+    grpc_batch_threshold_cpu_load: usize,
+    grpc_batch_threshold_mss: usize,
+    grpc_batch_threshold_msg_count: usize,
+    grpc_batch_timeout: u64,
 
     grpc_thread_load: Arc<ThreadLoad>,
 
@@ -84,6 +88,10 @@ impl<
             ch: self.ch.clone(),
             snap_scheduler: self.snap_scheduler.clone(),
             enable_req_batch: self.enable_req_batch,
+            grpc_batch_threshold_cpu_load: self.grpc_batch_threshold_cpu_load,
+            grpc_batch_threshold_mss: self.grpc_batch_threshold_mss,
+            grpc_batch_threshold_msg_count: self.grpc_batch_threshold_msg_count,
+            grpc_batch_timeout: self.grpc_batch_timeout,
             grpc_thread_load: self.grpc_thread_load.clone(),
             readpool_normal_thread_load: self.readpool_normal_thread_load.clone(),
             security_mgr: self.security_mgr.clone(),
@@ -102,6 +110,10 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Servi
         grpc_thread_load: Arc<ThreadLoad>,
         readpool_normal_thread_load: Arc<ThreadLoad>,
         enable_req_batch: bool,
+        grpc_batch_threshold_cpu_load: usize,
+        grpc_batch_threshold_mss: usize,
+        grpc_batch_threshold_msg_count: usize,
+        grpc_batch_timeout: u64,
         security_mgr: Arc<SecurityManager>,
     ) -> Self {
         Service {
@@ -113,6 +125,10 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Servi
             grpc_thread_load,
             readpool_normal_thread_load,
             enable_req_batch,
+            grpc_batch_threshold_cpu_load,
+            grpc_batch_threshold_mss,
+            grpc_batch_threshold_msg_count,
+            grpc_batch_timeout,
             security_mgr,
         }
     }
@@ -902,10 +918,20 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
             BatchCommandsResponse::default,
             BatchRespCollector,
         );
+        let queued_bytes0 = Arc::new(AtomicU32::new(0));
+        let queued_bytes = queued_bytes0.clone();
 
+        let grpc_batch_threshold_msg_count = self.grpc_batch_threshold_msg_count;
+        let grpc_batch_timeout = self.grpc_batch_timeout;
+        let grpc_batch_threshold_cpu_load = self.grpc_batch_threshold_cpu_load;
+        let grpc_batch_threshold_mss = self.grpc_batch_threshold_mss;
+        let thread_load2 = Arc::clone(&thread_load);
         let mut response_retriever = response_retriever
             .inspect(|r| GRPC_RESP_BATCH_COMMANDS_SIZE.observe(r.request_ids.len() as f64))
             .map(move |mut r| {
+                let xa : Option<&kvproto::tikvpb::BatchCommandsResponse> = Some(&r);
+                let msg_len = xa.map(protobuf::Message::compute_size).unwrap();
+                queued_bytes0.fetch_add(msg_len, Ordering::SeqCst);
                 r.set_transport_layer_load(thread_load.load() as u64);
                 GrpcResult::<(BatchCommandsResponse, WriteFlags)>::Ok((
                     r,
@@ -914,28 +940,34 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
             }).fuse();
         let send_task = async move {
             use futures::prelude::*;
-            const BUF_SIZE : usize = 8;
-            let mut timeout = futures_timer::Delay::new(std::time::Duration::from_millis(50)).fuse();
+            let buf_size: usize = grpc_batch_threshold_msg_count;
+            let mut timeout = futures_timer::Delay::new(std::time::Duration::from_millis(grpc_batch_timeout)).fuse();
             // let mut interval = time::interval(Duration::from_millis(50));
-            let mut v2 = Vec::with_capacity(BUF_SIZE);
+            let mut v2 = Vec::with_capacity(buf_size);
 
             sink.enhance_batch(true);
             let mut eof = false;
             loop {
+                let mut to = false;
                 futures::select! {
                     _ = timeout => {
                         // println!("operation timed out--------------");
                         // println!("timeo {:?} {:?}", v2, std::time::SystemTime::now());
+                        to = true;
                     }
                     r = response_retriever.next() => match r {
                         None => {
                             // println!(">>>>>>>>> batch {:?} GOT NONE", std::time::SystemTime::now());
                             eof = true;
                         },
-                        Some(req) => {
+                        Some(resp) => {
                             // println!(">>>>>>>>> batch {:?} {:?} {:?}", std::time::SystemTime::now(), v2, req);
-                            v2.push(req);
-                            if v2.len() < 68 {
+
+                            // load
+                            v2.push(resp);
+                            if thread_load2.load() > grpc_batch_threshold_cpu_load
+                                && queued_bytes.load(Ordering::SeqCst) < grpc_batch_threshold_mss as u32
+                                && v2.len() < grpc_batch_threshold_msg_count {
                                 continue
                             }
                         }
@@ -945,13 +977,13 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
                 if eof {
                     break
                 }
-
-                // let length = v2.len();
+                let length = v2.len();
                 let mut stream1 = stream::iter(v2.into_iter());
-                // println!("sendall >>>>>>>>>>> -------------- {}", length);
+                warn!("sendall >>>>>>>>>>> -------------- queue.len: {} load: {} queue.bytes: {} timeout: {}", length, thread_load2.load(), queued_bytes.load(Ordering::SeqCst), to);
                 sink.send_all(&mut stream1).await.unwrap();
+                v2 = Vec::with_capacity(buf_size);
+                queued_bytes.store(0, Ordering::SeqCst);
                 timeout = futures_timer::Delay::new(std::time::Duration::from_millis(50)).fuse();
-                v2 = Vec::with_capacity(BUF_SIZE);
             }
             sink.close().await?;
             Ok(())
@@ -1833,6 +1865,7 @@ pub mod batch_commands_request {
 pub use kvproto::tikvpb::batch_commands_request;
 #[cfg(feature = "prost-codec")]
 pub use kvproto::tikvpb::batch_commands_response;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 struct BatchRespCollector;
 impl BatchCollector<BatchCommandsResponse, (u64, batch_commands_response::Response)>

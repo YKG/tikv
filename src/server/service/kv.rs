@@ -931,7 +931,7 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
             .map(move |mut r| {
                 let xa : Option<&kvproto::tikvpb::BatchCommandsResponse> = Some(&r);
                 let msg_len = xa.map(protobuf::Message::compute_size).unwrap();
-                queued_bytes0.fetch_add(msg_len, Ordering::SeqCst);
+                queued_bytes0.store(msg_len, Ordering::SeqCst);
                 r.set_transport_layer_load(thread_load.load() as u64);
                 GrpcResult::<(BatchCommandsResponse, WriteFlags)>::Ok((
                     r,
@@ -943,47 +943,73 @@ impl<T: RaftStoreRouter<RocksEngine> + 'static, E: Engine, L: LockManager> Tikv
             let buf_size: usize = grpc_batch_threshold_msg_count;
             let mut timeout = futures_timer::Delay::new(std::time::Duration::from_millis(grpc_batch_timeout)).fuse();
             // let mut interval = time::interval(Duration::from_millis(50));
-            let mut v2 = Vec::with_capacity(buf_size);
+            let mut buf = std::collections::VecDeque::with_capacity(buf_size);
 
             sink.enhance_batch(true);
             let mut eof = false;
-            loop {
-                let mut to = false;
+            let mut queued_bytes_len = 0;
+            let mut last_msg_len = 0;
+            while !eof {
+                let mut nosend = false;
                 futures::select! {
                     _ = timeout => {
                         // println!("operation timed out--------------");
                         // println!("timeo {:?} {:?}", v2, std::time::SystemTime::now());
-                        to = true;
                     }
                     r = response_retriever.next() => match r {
                         None => {
                             // println!(">>>>>>>>> batch {:?} GOT NONE", std::time::SystemTime::now());
                             eof = true;
                         },
-                        Some(resp) => {
+                        Some(resp1) => {
                             // println!(">>>>>>>>> batch {:?} {:?} {:?}", std::time::SystemTime::now(), v2, req);
+                            last_msg_len = queued_bytes.load(Ordering::SeqCst);
+                            buf.push_back(resp1);
+                            queued_bytes_len += last_msg_len;
 
-                            // load
-                            v2.push(resp);
                             if thread_load2.load() > grpc_batch_threshold_cpu_load
-                                && queued_bytes.load(Ordering::SeqCst) < grpc_batch_threshold_mss as u32
-                                && v2.len() < grpc_batch_threshold_msg_count {
-                                continue
+                                && buf.len() + 1 < grpc_batch_threshold_msg_count
+                                && queued_bytes_len + last_msg_len < grpc_batch_threshold_mss as u32 {
+                                nosend = true;
                             }
                         }
                     }
                 }
-
                 if eof {
-                    break
+                    break;
                 }
-                let length = v2.len();
-                let mut stream1 = stream::iter(v2.into_iter());
-                warn!("sendall >>>>>>>>>>> -------------- queue.len: {} load: {} queue.bytes: {} timeout: {}", length, thread_load2.load(), queued_bytes.load(Ordering::SeqCst), to);
-                sink.send_all(&mut stream1).await.unwrap();
-                v2 = Vec::with_capacity(buf_size);
-                queued_bytes.store(0, Ordering::SeqCst);
-                timeout = futures_timer::Delay::new(std::time::Duration::from_millis(50)).fuse();
+                if nosend {
+                    continue;
+                }
+
+                let mut reset_timer = true;
+                if queued_bytes_len > grpc_batch_threshold_mss as u32 {
+                    let last_msg = buf.pop_back().unwrap();
+
+                    let mut stream1 = stream::iter(buf.into_iter());
+                    sink.send_all(&mut stream1).await.unwrap();
+                    buf = std::collections::VecDeque::with_capacity(buf_size);
+
+                    buf.push_back(last_msg);
+                    if last_msg_len >= grpc_batch_threshold_mss as u32 {
+                        let mut stream1 = stream::iter(buf.into_iter());
+                        sink.send_all(&mut stream1).await.unwrap();
+                        buf = std::collections::VecDeque::with_capacity(buf_size);
+                        queued_bytes_len = 0;
+                    } else {
+                        queued_bytes_len = last_msg_len;
+                        reset_timer = false;
+                    }
+                } else if !buf.is_empty() {
+                    let mut stream1 = stream::iter(buf.into_iter());
+                    sink.send_all(&mut stream1).await.unwrap();
+                    buf = std::collections::VecDeque::with_capacity(buf_size);
+                    queued_bytes_len = 0;
+                }
+
+                if reset_timer {
+                    timeout = futures_timer::Delay::new(std::time::Duration::from_millis(grpc_batch_timeout)).fuse();
+                }
             }
             sink.close().await?;
             Ok(())

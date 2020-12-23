@@ -900,12 +900,14 @@ impl<T: RaftStoreRouter + 'static, E: Engine, L: LockManager> Tikv for Service<T
                 GrpcError::RpcFailure(RpcStatus::new(RpcStatusCode::UNKNOWN, msg))
             });
 
-        ctx.spawn(sink.send_all(response_retriever).map(|_| ()).map_err(|e| {
-            debug!("kv rpc failed";
+        ThreadBuilder::new().spanw(move || {
+            sink.send_all(response_retriever).map(|_| ()).map_err(|e| {
+                debug!("kv rpc failed";
                 "request" => "batch_commands",
                 "err" => ?e
             );
-        }));
+            })
+        })
     }
 }
 
